@@ -1,679 +1,156 @@
-let notes = JSON.parse(localStorage.getItem("notes")) || [];
+const NOTES_KEY = 'notes_v2';
+const THEME_KEY = 'theme';
+let notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
+let search = '';
+let subjectFilter = '';
 
-const THEME_KEY = "theme";
+const els = {
+  noteTitle: document.getElementById('noteTitle'),
+  noteInput: document.getElementById('noteInput'),
+  noteSubject: document.getElementById('noteSubject'),
+  noteTags: document.getElementById('noteTags'),
+  addBtn: document.getElementById('addNoteBtn'),
+  notesContainer: document.getElementById('notesContainer'),
+  searchInput: document.getElementById('searchInput'),
+  filterSubject: document.getElementById('filterSubject'),
+  dashboard: document.getElementById('dashboard'),
+  timeline: document.getElementById('timeline'),
+  themeToggle: document.getElementById('themeToggle')
+};
 
-
-displayNotes();
-initTheme();
-
-// Auto-save configuration
-const AUTO_SAVE_KEY = 'draft';
-const AUTO_SAVE_DELAY = 2000; // ms of inactivity before saving
-let autoSaveTimer = null;
-
-function scheduleAutoSave(){
-    const statusEl = document.getElementById('saveStatus');
-    if(statusEl) statusEl.textContent = 'Saving...';
-    if(autoSaveTimer) clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(()=>{
-        saveDraft();
-        if(statusEl) {
-            const time = new Date();
-            statusEl.textContent = 'Saved';
-            // briefly show saved then clear after 2s
-            setTimeout(()=>{ if(statusEl) statusEl.textContent = ''; }, 2000);
-        }
-        autoSaveTimer = null;
-    }, AUTO_SAVE_DELAY);
-}
-
-function saveDraft(){
-    const title = document.getElementById('noteTitle')?.value || '';
-    const content = document.getElementById('noteInput')?.value || '';
-    const tags = document.getElementById('noteTags')?.value || '';
-    const subject = document.getElementById('noteSubject')?.value || '';
-
-    const draft = {
-        title, content, tags, subject, savedAt: Date.now()
-    };
-    try{ localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(draft)); }catch(e){ console.warn('Failed to save draft', e); }
-}
-
-function restoreDraft(){
-    try{
-        const raw = localStorage.getItem(AUTO_SAVE_KEY);
-        if(!raw) return false;
-        const draft = JSON.parse(raw);
-        // If editor already has content, skip auto-restoring to avoid overwriting
-        const currentContent = document.getElementById('noteInput')?.value || '';
-        const currentTitle = document.getElementById('noteTitle')?.value || '';
-        if(currentContent || currentTitle) return false;
-
-        if(draft.title) document.getElementById('noteTitle').value = draft.title;
-        if(draft.content) document.getElementById('noteInput').value = draft.content;
-        if(draft.tags) document.getElementById('noteTags').value = draft.tags;
-        if(draft.subject) document.getElementById('noteSubject').value = draft.subject;
-
-        const statusEl = document.getElementById('saveStatus');
-        if(statusEl) statusEl.textContent = 'Restored draft';
-        setTimeout(()=>{ if(statusEl) statusEl.textContent = ''; }, 2000);
-        return true;
-    }catch(e){ return false; }
-}
-
-function clearDraft(){
-    try{ localStorage.removeItem(AUTO_SAVE_KEY); }catch(e){}
-}
-
-// UI state
-let searchQuery = "";
-let filterTags = [];
-let filterSubject = "";
-let globalTags = [];
-
-const TAGS_KEY = 'allTags';
-
-function loadGlobalTags(){
-    try{ globalTags = JSON.parse(localStorage.getItem(TAGS_KEY)) || []; }catch(e){ globalTags = []; }
-}
-
-function saveGlobalTags(){
-    try{ localStorage.setItem(TAGS_KEY, JSON.stringify(globalTags)); }catch(e){}
-}
-
-function addGlobalTags(tags){
-    if(!Array.isArray(tags)) return;
-    tags.forEach(t=>{
-        const val = String(t).trim();
-        if(!val) return;
-        const exists = globalTags.some(gt=>gt.toLowerCase() === val.toLowerCase());
-        if(!exists) globalTags.push(val);
-    });
-    saveGlobalTags();
-}
-
-function renderSuggestedTags(){
-    const container = document.getElementById('suggestedTags');
-    if(!container) return;
-    // compute tag counts from notes
-    const counts = {};
-    notes.forEach(n=> (n.tags||[]).forEach(t=>{ const k=t; counts[k] = (counts[k]||0)+1 }));
-    // merge globalTags with counts, sort by count desc then name
-    const list = Array.from(new Set([].concat(globalTags, Object.keys(counts))));
-    list.sort((a,b)=> (counts[b]||0) - (counts[a]||0) || a.localeCompare(b));
-    container.innerHTML = list.map(t=>`<button type="button" class="suggested-tag" onclick="applyTagFilter(${JSON.stringify(t)})">${escapeHtml(t)}${counts[t] ? ' ('+counts[t]+')' : ''}</button>`).join(' ');
-}
-
-function applyTagFilter(tag){
-    if(!tag) return;
-    filterTags = [String(tag)];
-    const filterTagsInput = document.getElementById('filterTags');
-    if(filterTagsInput) filterTagsInput.value = tag;
-    displayNotes();
-}
-
-normalizeNotes();
-displayNotes();
-initTheme();
-
-function normalizeNotes(){
-    // Convert old string notes into structured objects
-    notes = notes.map(n => {
-        if(typeof n === 'string'){
-            const lines = n.split('\n').map(l=>l.trim()).filter(Boolean);
-            return {
-                id: Date.now() + Math.floor(Math.random()*1000),
-                title: lines[0] || '',
-                content: lines.slice(1).join('\n') || lines[0] || '',
-                tags: [],
-                subject: '',
-                pinned: false,
-                favorite: false
-            };
-        }
-        // Already structured, ensure keys exist
-        return {
-            id: n.id || (Date.now() + Math.floor(Math.random()*1000)),
-            title: n.title || '',
-            content: n.content || '',
-            tags: Array.isArray(n.tags) ? n.tags : (n.tags ? String(n.tags).split(',').map(s=>s.trim()).filter(Boolean) : []),
-            subject: n.subject || '',
-            pinned: !!n.pinned,
-            favorite: !!n.favorite
-        };
-    });
-
-    localStorage.setItem('notes', JSON.stringify(notes));
-    // load and sync tags
-    loadGlobalTags();
-    // seed global tags from notes
-    notes.forEach(n=> addGlobalTags(n.tags||[]));
-    renderSuggestedTags();
-}
-
+function save() { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); }
+function fmtDate(ts) { return new Date(ts).toLocaleDateString(); }
+function todayKey(ts) { return new Date(ts).toISOString().slice(0, 10); }
 
 function addNote() {
-    let title = document.getElementById("noteTitle").value.trim();
-    let input = document.getElementById("noteInput");
-    let noteText = input.value.trim();
-    let tagsText = document.getElementById('noteTags').value.trim();
-    let subjectText = document.getElementById('noteSubject').value.trim();
+  const title = els.noteTitle.value.trim();
+  const content = els.noteInput.value.trim();
+  const subject = els.noteSubject.value.trim() || 'General';
+  const tags = els.noteTags.value.split(',').map(t => t.trim()).filter(Boolean);
+  if (!content) return alert('Please enter note content.');
 
-    if(noteText === ""){
-        alert("Please enter a note");
-        return;
-    }
+  notes.unshift({
+    id: crypto.randomUUID(),
+    title,
+    content,
+    subject,
+    tags,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    lastOpenedAt: Date.now(),
+    priority: content.length > 250 ? 'High' : 'Normal'
+  });
 
-
-    if (notes.includes(noteText)) {
-        alert("This note already exists!");
-        return;
-    }
-
-    notes.push(noteText);
-
-    const newNote = {
-        id: Date.now(),
-        title: title,
-        content: noteText,
-        tags: tagsText ? tagsText.split(',').map(t=>t.trim()).filter(Boolean) : [],
-        subject: subjectText || '',
-        pinned: false
-    };
-
-
-    notes.unshift(newNote);
-
-    localStorage.setItem("notes", JSON.stringify(notes));
-
-    document.getElementById('noteTitle').value = '';
-    document.getElementById('noteInput').value = '';
-    document.getElementById('noteTags').value = '';
-    document.getElementById('noteSubject').value = '';
-
-    refreshFilters();
-    displayNotes();
-
-    // Clear any saved draft after successful save
-    clearDraft();
-
-    // update global tags list and suggestions
-    addGlobalTags(newNote.tags);
-    renderSuggestedTags();
+  ['noteTitle', 'noteInput', 'noteSubject', 'noteTags'].forEach(k => els[k].value = '');
+  save();
+  renderAll();
 }
 
-function displayNotes(){
-    let container = document.getElementById("notesContainer");
+function openNote(id) {
+  const n = notes.find(x => x.id === id);
+  if (!n) return;
+  n.lastOpenedAt = Date.now();
+  save();
+  renderAll();
+}
+function deleteNote(id) { notes = notes.filter(n => n.id !== id); save(); renderAll(); }
 
-    let pinnedContainer = document.getElementById('pinnedContainer');
-    const pinnedSection = document.getElementById('pinnedSection');
-
-    container.innerHTML = "";
-    pinnedContainer.innerHTML = "";
-
-    const q = searchQuery.trim();
-    const tagsFilter = filterTags.map(t=>t.toLowerCase());
-    const subjectFilter = filterSubject.toLowerCase();
-
-    const favoritesContainer = document.getElementById('favoritesContainer');
-    const favoritesSection = document.getElementById('favoritesSection');
-
-    notes.forEach((note)=>{
-        const combined = (note.title + ' ' + note.content).toLowerCase();
-
-        // Filter by search query
-        if(q){
-            if(!combined.includes(q.toLowerCase())) return;
-        }
-
-        // Filter by tags
-        if(tagsFilter.length){
-            const noteTags = (note.tags || []).map(t=>t.toLowerCase());
-            const hasTag = tagsFilter.every(t=>noteTags.includes(t));
-            if(!hasTag) return;
-        }
-
-        // Filter by subject
-        if(subjectFilter){
-            if((note.subject || '').toLowerCase() !== subjectFilter) return;
-        }
-
-        const titleHtml = note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : '';
-
-        // Render markdown to HTML safely and then highlight text nodes
-        let rawHtml = '';
-        try{
-            if(window.marked){
-                rawHtml = marked.parse(note.content || '');
-            } else {
-                rawHtml = escapeHtml(note.content || '');
-            }
-        }catch(e){
-            rawHtml = escapeHtml(note.content || '');
-        }
-
-        const safeHtml = (window.DOMPurify && DOMPurify.sanitize) ? DOMPurify.sanitize(rawHtml) : rawHtml;
-
-
-    if (notes.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <p>No notes found. Start by adding your first note above!</p>
-            </div>
-        `;
-        return;
-    }
-
-    notes.forEach((note,index)=>{
-        container.innerHTML += `
-            <div class="note">
-                ${escapeHtml(note)}
-                <button class="edit-btn"
-                onclick="editNote(${index})" aria-label="Edit note">
-                Edit
-                </button>
-                <button class="delete-btn"
-                onclick="deleteNote(${index})" aria-label="Delete note">
-                X
-                </button>
-
-        // Use a temporary element to perform text-node highlighting
-        const tmp = document.createElement('div');
-        tmp.innerHTML = safeHtml;
-        if(q) highlightInElement(tmp, q);
-        const contentHtml = `<div class="note-content">${tmp.innerHTML}</div>`;
-        const subjectHtml = note.subject ? `<div class="note-subject">Subject: ${escapeHtml(note.subject)}</div>` : '';
-        const tagsHtml = (note.tags || []).length ? `<div class="note-tags">${note.tags.map(t=>`<button type="button" class="tag" onclick="applyTagFilter(${JSON.stringify(t)})">${escapeHtml(t)}</button>`).join('')}</div>` : '';
-
-        // Favorite & Pin buttons
-        const favBtn = `<button class="favorite-btn ${note.favorite ? 'active' : ''}" onclick="toggleFavorite('${note.id}')" aria-label="Toggle favorite">${note.favorite ? '★' : '☆'}</button>`;
-        const pinBtn = `<button class="pin-btn" onclick="togglePin('${note.id}')" aria-label="Toggle pin">${note.pinned ? 'Unpin' : 'Pin'}</button>`;
-
-        const noteHtml = `
-            <div class="note">
-                ${favBtn}
-                ${pinBtn}
-                ${titleHtml}
-                ${contentHtml}
-                ${subjectHtml}
-                ${tagsHtml}
-                <button class="delete-btn" onclick="deleteNote('${note.id}')" aria-label="Delete note">X</button>
-
-            </div>
-        `;
-
-        if(note.favorite){
-            // favorites shown in dedicated section
-            if(favoritesContainer) favoritesContainer.innerHTML += noteHtml;
-        } else if(note.pinned){
-            pinnedContainer.innerHTML += noteHtml;
-        } else {
-            container.innerHTML += noteHtml;
-        }
-    });
-
-    // Show or hide pinned section
-    if(pinnedContainer.children.length){
-        pinnedSection.style.display = '';
-    } else {
-        pinnedSection.style.display = 'none';
-    }
-    if(favoritesContainer && favoritesSection){
-        if(favoritesContainer.children.length){
-            favoritesSection.style.display = '';
-        } else {
-            favoritesSection.style.display = 'none';
-        }
-    }
-
-    // refresh suggested tag counts
-    renderSuggestedTags();
+function computeStreak() {
+  const days = [...new Set(notes.map(n => todayKey(n.createdAt)))].sort();
+  if (!days.length) return 0;
+  let streak = 0;
+  let cursor = new Date();
+  for (;;) {
+    const d = cursor.toISOString().slice(0, 10);
+    if (days.includes(d)) { streak++; cursor.setDate(cursor.getDate() - 1); } else break;
+  }
+  return streak;
 }
 
+function renderDashboard() {
+  const total = notes.length;
+  const today = todayKey(Date.now());
+  const todayCount = notes.filter(n => todayKey(n.createdAt) === today).length;
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weeklyCount = notes.filter(n => n.createdAt >= weekAgo).length;
+  const streak = computeStreak();
+  const categories = {};
+  notes.forEach(n => categories[n.subject] = (categories[n.subject] || 0) + 1);
+  const top = Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 4);
 
-function editNote(index){
-    let newNote = prompt("Edit your note:", notes[index]);
-    if(newNote !== null && newNote.trim() !== ""){
-        let trimmedNote = newNote.trim();
-        
-        if (notes.includes(trimmedNote) && notes.indexOf(trimmedNote) !== index) {
-            alert("A note with this text already exists!");
-            return;
-        }
+  const goal = 14;
+  const pct = Math.min(100, Math.round((weeklyCount / goal) * 100));
 
-        notes[index] = trimmedNote;
-        localStorage.setItem("notes", JSON.stringify(notes));
-        displayNotes();
-    }
+  els.dashboard.innerHTML = `
+    <div class="card"><h3>Total Notes</h3><div class="metric">${total}</div></div>
+    <div class="card"><h3>Today Activity</h3><div class="metric">${todayCount}</div></div>
+    <div class="card"><h3>Weekly Activity</h3><div class="metric">${weeklyCount}</div></div>
+    <div class="card"><h3>Study Streak 🔥</h3><div class="metric">${streak} day${streak === 1 ? '' : 's'}</div></div>
+    <div class="card"><h3>Weekly Goal</h3><div>${weeklyCount}/${goal} notes</div><div class="progress"><span style="width:${pct}%"></span></div></div>
+    <div class="card"><h3>Top Subjects</h3>${top.map(([s, c]) => `<div>${s} <span class="badge">${c}</span></div>`).join('') || 'No data yet'}</div>
+  `;
 }
 
-function sortNotes() {
-    const sortOrder = document.getElementById("sortOrder").value;
-    if (sortOrder === "asc") {
-        notes.sort((a, b) => a.localeCompare(b));
-    } else if (sortOrder === "desc") {
-        notes.sort((a, b) => b.localeCompare(a));
-    }
-
-    localStorage.setItem("notes", JSON.stringify(notes));
-    displayNotes();
+function renderSubjectFilter() {
+  const subjects = [...new Set(notes.map(n => n.subject))].sort();
+  els.filterSubject.innerHTML = '<option value="">All subjects</option>' + subjects.map(s => `<option ${s === subjectFilter ? 'selected' : ''}>${s}</option>`).join('');
 }
 
-function deleteNote(index){
-    notes.splice(index,1);
+function renderNotes() {
+  const q = search.toLowerCase();
+  const filtered = notes.filter(n => {
+    const matchSearch = !q || `${n.title} ${n.content} ${n.tags.join(' ')}`.toLowerCase().includes(q);
+    const matchSubject = !subjectFilter || n.subject === subjectFilter;
+    return matchSearch && matchSubject;
+  });
 
-// Walk DOM and wrap matching text in <mark> elements (case-insensitive)
-function highlightInElement(element, query){
-    if(!query) return;
-    const q = String(query).trim();
-    if(!q) return;
-    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'ig');
-
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
-    const nodes = [];
-    while(walker.nextNode()) nodes.push(walker.currentNode);
-
-    nodes.forEach(textNode => {
-        const parent = textNode.parentNode;
-        if(!parent) return;
-        const text = textNode.nodeValue;
-        if(!re.test(text)) return;
-        const frag = document.createDocumentFragment();
-        let lastIndex = 0;
-        text.replace(re, (match, offset) => {
-            const before = text.slice(lastIndex, offset);
-            if(before) frag.appendChild(document.createTextNode(before));
-            const mark = document.createElement('mark');
-            mark.className = 'highlight';
-            mark.textContent = match;
-            frag.appendChild(mark);
-            lastIndex = offset + match.length;
-            return match;
-        });
-        const after = text.slice(lastIndex);
-        if(after) frag.appendChild(document.createTextNode(after));
-        parent.replaceChild(frag, textNode);
-    });
+  els.notesContainer.innerHTML = filtered.length ? filtered.map(n => `
+    <article class="note">
+      <strong>${escapeHtml(n.title || '(Untitled)')}</strong>
+      <p>${escapeHtml(n.content)}</p>
+      <div class="note-meta">
+        <span>Subject: ${escapeHtml(n.subject)}</span>
+        <span>Priority: ${n.priority}</span>
+        <span>Updated: ${fmtDate(n.updatedAt)}</span>
+      </div>
+      <div class="note-meta">${n.tags.map(t => `<span class="badge">#${escapeHtml(t)}</span>`).join(' ')}</div>
+      <div class="note-actions">
+        <button type="button" onclick="openNote('${n.id}')">Open</button>
+        <button type="button" onclick="deleteNote('${n.id}')">Delete</button>
+      </div>
+    </article>
+  `).join('') : '<p>No notes found.</p>';
 }
 
-function deleteNote(id){
-    const idx = notes.findIndex(n=>String(n.id) === String(id));
-    if(idx === -1) return;
-    notes.splice(idx,1);
-
-
-    localStorage.setItem(
-        "notes",
-        JSON.stringify(notes)
-    );
-
-    refreshFilters();
-    displayNotes();
+function renderTimeline() {
+  const recent = [...notes].sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0)).slice(0, 8);
+  els.timeline.innerHTML = recent.length ? recent.map(n => `<div class="timeline-item">${escapeHtml(n.title || '(Untitled)')} — last opened ${new Date(n.lastOpenedAt).toLocaleString()}</div>`).join('') : '<p>No recent activity yet.</p>';
 }
 
-function togglePin(id){
-    const idx = notes.findIndex(n=>String(n.id) === String(id));
-    if(idx === -1) return;
-    notes[idx].pinned = !notes[idx].pinned;
-    localStorage.setItem('notes', JSON.stringify(notes));
-    displayNotes();
+function escapeHtml(str) {
+  return String(str).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
 
-
-function toggleFavorite(id){
-    const idx = notes.findIndex(n=>String(n.id) === String(id));
-    if(idx === -1) return;
-    notes[idx].favorite = !notes[idx].favorite;
-    localStorage.setItem('notes', JSON.stringify(notes));
-    displayNotes();
+function initTheme() {
+  const existing = localStorage.getItem(THEME_KEY) || 'light';
+  document.documentElement.setAttribute('data-theme', existing);
+  els.themeToggle.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem(THEME_KEY, next);
+  });
 }
 
-// Export local storage notes array as a downloadable JSON file
-function exportNotes() {
-    if (notes.length === 0) {
-        alert("You do not have any saved notes to export!");
-        return;
-    }
-
-    // Convert notes data structure to a string
-    const jsonString = JSON.stringify(notes, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    
-    // Create a temporary hidden link element to force browser download triggers
-    const downloadAnchor = document.createElement('a');
-    const timestamp = new Date().toISOString().split('T')[0];
-    
-    downloadAnchor.href = URL.createObjectURL(blob);
-    downloadAnchor.download = `student_notes_backup_${timestamp}.json`;
-    
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    
-    // Cleanup temporary DOM elements
-    document.body.removeChild(downloadAnchor);
-    URL.revokeObjectURL(downloadAnchor.href);
+function renderAll() {
+  renderSubjectFilter();
+  renderDashboard();
+  renderNotes();
+  renderTimeline();
 }
 
-// Import and append unique notes from a structural JSON file
-function importNotes(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+els.addBtn.addEventListener('click', addNote);
+els.searchInput.addEventListener('input', e => { search = e.target.value; renderNotes(); });
+els.filterSubject.addEventListener('change', e => { subjectFilter = e.target.value; renderNotes(); });
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const importedData = JSON.parse(e.target.result);
-
-            // Validation Guardrail: Ensure parsed file content is a valid Array
-            if (Array.isArray(importedData)) {
-                
-                // Advanced Tip: Filter out notes that already exist in the app to prevent duplicates
-                const uniqueImportedData = importedData.filter(importedNote => {
-                    // If the imported note is an object (in case the schema changes later)
-                    if (typeof importedNote === 'object' && importedNote !== null) {
-                        return !notes.some(existingNote => 
-                            typeof existingNote === 'object' && existingNote !== null 
-                            ? existingNote.text === importedNote.text 
-                            : existingNote === importedNote.text
-                        );
-                    }
-                    // Standard string matching for the current codebase setup
-                    return !notes.includes(importedNote);
-                });
-
-                if (uniqueImportedData.length === 0) {
-                    alert("All notes in this backup are already present in your app!");
-                    event.target.value = '';
-                    return;
-                }
-
-                const userConfirmation = confirm(`Found ${uniqueImportedData.length} new unique notes. Do you want to add them to your existing notes?`);
-                
-                if (userConfirmation) {
-                    // Combine existing notes with the unique imported ones
-                    notes = [...notes, ...uniqueImportedData];
-                    
-                    localStorage.setItem("notes", JSON.stringify(notes));
-                    displayNotes();
-                    alert("New notes imported and added successfully!");
-                }
-            } else {
-                alert("Import failed: JSON structure must be a valid array list.");
-            }
-        } catch (error) {
-            alert("Error parsing backup file. Please ensure it is a valid, uncorrupted .json file.");
-        }
-        
-        // Reset the input value so the same file can be re-uploaded if modified
-        event.target.value = '';
-    };
-    reader.readAsText(file);
-}
-function refreshFilters(){
-    // Populate subjects dropdown
-    const select = document.getElementById('filterSubject');
-    if(!select) return;
-    const subjects = Array.from(new Set(notes.map(n=> (n.subject||'').trim()).filter(Boolean)));
-    const current = select.value;
-    select.innerHTML = '<option value="">All subjects</option>' + subjects.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-    select.value = current || '';
-}
-
-// Search and filter input wiring
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('searchInput');
-    const filterTagsInput = document.getElementById('filterTags');
-    const filterSubjectSelect = document.getElementById('filterSubject');
-    const livePreviewToggle = document.getElementById('livePreviewToggle');
-    const livePreview = document.getElementById('livePreview');
-    const noteInput = document.getElementById('noteInput');
-    const titleInput = document.getElementById('noteTitle');
-    const tagsInput = document.getElementById('noteTags');
-    const subjectInput = document.getElementById('noteSubject');
-    const saveStatus = document.getElementById('saveStatus');
-
-    if(searchInput){
-        searchInput.addEventListener('input', (e)=>{
-            searchQuery = e.target.value;
-            displayNotes();
-        });
-    }
-
-    if(filterTagsInput){
-        filterTagsInput.addEventListener('input', (e)=>{
-            const txt = e.target.value.trim();
-            filterTags = txt ? txt.split(',').map(t=>t.trim()).filter(Boolean) : [];
-            displayNotes();
-        });
-    }
-
-    if(filterSubjectSelect){
-        filterSubjectSelect.addEventListener('change', (e)=>{
-            filterSubject = e.target.value;
-            displayNotes();
-        });
-    }
-
-    refreshFilters();
-    // Restore any unsaved draft if present
-    restoreDraft();
-    // Wire autosave to inputs
-    [noteInput, titleInput, tagsInput, subjectInput].forEach(inp=>{
-        if(!inp) return;
-        inp.addEventListener('input', ()=>{
-            scheduleAutoSave();
-        });
-    });
-    // Wire suggested tag add
-    const newTagInput = document.getElementById('newTagInput');
-    const addTagBtn = document.getElementById('addTagBtn');
-    if(addTagBtn && newTagInput){
-        addTagBtn.addEventListener('click', ()=>{
-            const v = (newTagInput.value||'').trim();
-            if(!v) return;
-            addGlobalTags([v]);
-            newTagInput.value = '';
-            renderSuggestedTags();
-        });
-        newTagInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); addTagBtn.click(); } });
-    }
-    // Live preview handling
-    if(noteInput && livePreview && livePreviewToggle){
-        const updatePreview = () => {
-            const isOn = livePreviewToggle.checked;
-            livePreview.setAttribute('aria-hidden', isOn ? 'false' : 'true');
-            if(!isOn){
-                livePreview.style.display = 'none';
-                return;
-            }
-            livePreview.style.display = 'block';
-            const raw = noteInput.value || '';
-            let html = raw;
-            try{ html = window.marked ? marked.parse(raw) : escapeHtml(raw); }catch(e){ html = escapeHtml(raw); }
-            const safe = (window.DOMPurify && DOMPurify.sanitize) ? DOMPurify.sanitize(html) : html;
-            livePreview.innerHTML = safe;
-        };
-
-        noteInput.addEventListener('input', updatePreview);
-        livePreviewToggle.addEventListener('change', updatePreview);
-    }
-});
-
-function initTheme(){
-    const toggleBtn = document.getElementById("themeToggle");
-
-    const savedTheme = localStorage.getItem(THEME_KEY); // "light" | "dark" | null
-    const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-
-    const initialTheme = savedTheme === "dark" || savedTheme === "light"
-        ? savedTheme
-        : (systemPrefersDark ? "dark" : "light");
-
-    applyTheme(initialTheme, false);
-
-    if(toggleBtn){
-        toggleBtn.addEventListener('click', () => {
-            const current = document.documentElement.getAttribute('data-theme') || 'light';
-            const next = current === 'dark' ? 'light' : 'dark';
-            applyTheme(next, true);
-        });
-    }
-}
-
-function applyTheme(theme, persist){
-    document.documentElement.setAttribute('data-theme', theme);
-
-    if(persist){
-        localStorage.setItem(THEME_KEY, theme);
-    }
-
-
-    // Update toggle icon for better UX
-    const sunIcon = document.querySelector('.theme-icon--sun');
-    const moonIcon = document.querySelector('.theme-icon--moon');
-
-    if(sunIcon && moonIcon){
-        if(theme === 'dark'){
-            sunIcon.style.display = 'none';
-            moonIcon.style.display = 'inline';
-        } else {
-            sunIcon.style.display = 'inline';
-            moonIcon.style.display = 'none';
-        }
-    }
-}
-
-// Basic XSS protection since we render notes as HTML via innerHTML.
-function escapeHtml(str){
-    return String(str)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '<')
-        .replaceAll('>', '>')
-        .replaceAll('"', '"')
-        .replaceAll("'", '&#039;');
-}
-
-}
-
-function escapeHtml(str){
-    return String(str)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-}
-
-function escapeRegExp(string){
-    return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function highlightHtml(text, query){
-    if(!query) return escapeHtml(text);
-    const q = escapeRegExp(query.trim());
-    if(!q) return escapeHtml(text);
-    const re = new RegExp(`(${q})`, 'ig');
-    return escapeHtml(text).replace(re, '<mark class="highlight">$1</mark>');
-}
-
+initTheme();
+renderAll();

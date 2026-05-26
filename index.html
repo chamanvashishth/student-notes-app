@@ -1,81 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Student Notes App</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <header class="site-header">
-        <h1>Student Notes App</h1>
+  <div class="app-shell">
+    <header class="topbar">
+      <h1>Smart Study Dashboard</h1>
+      <button id="themeToggle" class="theme-toggle" type="button">🌓 Theme</button>
     </header>
 
-    <main class="main-content">
-      <div class="input-area">
-        <input id="noteTitle" placeholder="Title (optional)" />
-        <textarea id="noteInput" placeholder="Write your note here... (Markdown supported)"></textarea>
-        <div class="input-row">
-          <input id="noteTags" placeholder="Tags (comma separated)" />
-          <input id="noteSubject" placeholder="Subject / Category (optional)" />
-        </div>
-        <div class="input-row actions">
-          <label><input type="checkbox" id="livePreviewToggle" /> Live preview</label>
-          <div style="display:flex; align-items:center; gap:10px">
-            <button onclick="addNote()">Add Note</button>
-            <span id="saveStatus" class="save-status" aria-live="polite"></span>
-          </div>
-        </div>
+    <section class="dashboard" id="dashboard"></section>
 
-        <div id="livePreview" class="live-preview" aria-hidden="true"></div>
-      </div>
-
-      <section class="search-area">
-        <input id="searchInput" placeholder="Search notes by title or content..." />
-        <div class="filters">
-          <input id="filterTags" placeholder="Filter by tag (comma separated)" />
-          <select id="filterSubject">
-            <option value="">All subjects</option>
-          </select>
+    <main class="layout">
+      <section class="panel composer">
+        <h2>Add Note</h2>
+        <input id="noteTitle" placeholder="Title" />
+        <textarea id="noteInput" placeholder="Write your note..."></textarea>
+        <div class="row">
+          <input id="noteSubject" placeholder="Subject (Math, Science...)" />
+          <input id="noteTags" placeholder="Tags comma separated" />
         </div>
-          <div class="suggested-tags-area">
-            <input id="newTagInput" placeholder="Add tag" />
-            <button id="addTagBtn" type="button">Add Tag</button>
-            <div id="suggestedTags" class="suggested-tags"></div>
-          </div>
+        <button id="addNoteBtn" type="button">Add Note</button>
+      </section>
+
+      <section class="panel notes-panel">
+        <h2>Notes</h2>
+        <div class="row">
+          <input id="searchInput" placeholder="Search notes..." />
+          <select id="filterSubject"><option value="">All subjects</option></select>
+        </div>
+        <div id="notesContainer" class="notes-list"></div>
       </section>
     </main>
 
-    <footer class="site-footer">
-        <p>© 2026 Student Notes App. All rights reserved.</p>
-    </footer>
-
-    <div class="sort-controls">
-      <select id="sortOrder" onchange="sortNotes()">
-        <option value="" selected disabled>Sort Alphabetically</option>
-        <option value="asc">A to Z</option>
-        <option value="desc">Z to A</option>
-      </select>
-    </div>
-
-    <div id="notesContainer"></div>
-  
-    <section id="pinnedSection" class="pinned-section" aria-labelledby="pinnedHeading" style="display:none">
-      <h2 id="pinnedHeading">Pinned Notes</h2>
-      <div id="pinnedContainer"></div>
-    </section>
-    <section id="favoritesSection" class="favorites-section" aria-labelledby="favoritesHeading" style="display:none">
-      <h2 id="favoritesHeading">Favorites</h2>
-      <div id="favoritesContainer"></div>
+    <section class="panel">
+      <h2>Recent Activity Timeline</h2>
+      <div id="timeline" class="timeline"></div>
     </section>
   </div>
 
   <script src="script.js"></script>
-  <!-- Markdown renderer and sanitizer -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
-
 </body>
 </html>
-
