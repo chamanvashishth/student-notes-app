@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pomodoro Timer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="timer-shell" aria-live="polite">
+    <section class="hero-card">
+      <p class="eyebrow">Production-ready focus engine</p>
+      <h1>Pomodoro Timer</h1>
+      <p class="intro">
+        A resilient Pomodoro timer powered by absolute target timestamps, a Web Worker tick loop,
+        localStorage recovery, browser-title sync, and generated audio notifications.
+      </p>
+
+      <div class="phase-tabs" role="tablist" aria-label="Pomodoro phases">
+        <button class="phase-tab active" type="button" data-phase="work">Work</button>
+        <button class="phase-tab" type="button" data-phase="shortBreak">Short Break</button>
+        <button class="phase-tab" type="button" data-phase="longBreak">Long Break</button>
+      </div>
+
+      <div class="timer-card" data-status="idle">
+        <div class="status-row">
+          <span id="phaseLabel" class="phase-label">Work Session</span>
+          <span id="statusBadge" class="status-badge">Ready</span>
+        </div>
+        <div id="timeDisplay" class="time-display" aria-label="Time remaining">25:00</div>
+        <div class="progress-track" aria-hidden="true">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <p id="targetTime" class="target-time">Choose Start to begin a drift-resistant session.</p>
+      </div>
+
+      <div class="controls" aria-label="Timer controls">
+        <button id="startPauseBtn" class="primary" type="button">Start</button>
+        <button id="resetBtn" type="button">Reset</button>
+        <button id="skipBtn" type="button">Skip Phase</button>
+      </div>
+    </section>
+
+    <section class="settings-card" aria-labelledby="settingsTitle">
+      <div>
+        <p class="eyebrow">Session persistence matrix</p>
+        <h2 id="settingsTitle">Durations</h2>
+      </div>
+
+      <label>
+        Work minutes
+        <input id="workInput" type="number" min="1" max="180" value="25" />
+      </label>
+      <label>
+        Short break minutes
+        <input id="shortInput" type="number" min="1" max="60" value="5" />
+      </label>
+      <label>
+        Long break minutes
+        <input id="longInput" type="number" min="1" max="90" value="15" />
+      </label>
+      <label>
+        Long break after work sessions
+        <input id="cycleInput" type="number" min="2" max="12" value="4" />
+      </label>
+
+      <div class="engine-notes">
+        <h3>Engine safeguards</h3>
+        <ul>
+          <li>Remaining time is recalculated as <strong>target timestamp − system time</strong>.</li>
+          <li>A dedicated Web Worker emits heartbeat messages while the UI thread is busy.</li>
+          <li>Phase, status, target timestamp, settings, and cycle count hydrate after refresh.</li>
+          <li>AudioContext alerts and document title updates fire on phase transitions.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
